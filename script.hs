@@ -37,6 +37,7 @@ upload :: String -> FilePath -> FilePath -> IO ()
 upload host local remoteDir =
   run_ "scp" [local, host <> ":" <> remoteDir]
 
+main :: IO ()
 main = do
   find "." "*bin.gz"
     >>= sortByAge
