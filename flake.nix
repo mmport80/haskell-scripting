@@ -19,6 +19,10 @@
             p.directory
             p.process
             p.time
+            p.QuickCheck
+            p.filepath
+            p.SHA
+            p.bytestring
           ]);
         in
         {
