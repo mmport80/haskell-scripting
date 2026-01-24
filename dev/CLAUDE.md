@@ -5,46 +5,31 @@ Haskell-as-bash-replacement for scripting tasks. Starting with: backup local fil
 
 ## Run
 Scripts use shebang: `#!/usr/bin/env runhaskell`
-
 Execute directly: `./script.hs`
 
 ## Constraints
 - SFTP only (narrow scope for now)
 - Portable, standard library where possible
 - Freely use common bash utils, but be pragmatic and use Haskell libraries when fitting
+- **Self-contained scripts**: Keep everything visible within the script. Minimize external dependencies/config files. Configuration should be script args/env vars when possible.
 
 ## Style
 KISS
 
+## Configuration
+- Scripts should accept configurable inputs (source dir, credentials, destination) via command-line args or environment variables
+- Allow users to choose what to back up (not hardcoded patterns)
+
 ## Testing
-- Integration tests primary: run script, verify results
-- QuickCheck for system properties (generate file scenarios, verify backup consistency)
-- Test scripts: `./test_*.hs`
-- Currently, for testing sftp is available here: `sftp johnorford@localhost`. The keys are setup so that you can login etc.
-- Upload to this directory in the SFTP folder: `/Users/johnorford/haskell-scripting/test-uploads`
+- **Property-based testing only** - Use QuickCheck or similar for generative testing
+- No unit tests - focus on properties that should hold
+- QA feedback in FEEDBACK.md focuses on **functionality issues only**, not testing/code details
+- QA role: Test functionality to spot problems (test code, don't review it)
 
-## v0.1 - Basic SFTP Backup
-
-### Properties to verify:
-
-```haskell
--- All local files appear on remote
-prop_allFilesExist :: FileTree -> Property
-
--- Content integrity
-prop_checksumsMatch :: FileTree -> Property
-
--- Structure preserved
-prop_directoryStructure :: FileTree -> Property
-
--- Idempotent (backup twice = same state as once)
-prop_idempotent :: FileTree -> Property
-
--- Unchanged files not re-transferred (optional: check transfer log or mtime)
-prop_skipUnchanged :: FileTree -> Property
-```
-
-### Generators needed:
-- `FileTree` - random directory structures with files
-- `FileContent` - random file contents (varying sizes)
-- `FileName` - edge cases: spaces, unicode, dots, long names
+## Current Goal: v0.1 - Basic SFTP Backup
+A script that backs up local files to a remote SFTP server:
+- All local files should appear on remote
+- Content integrity preserved
+- Directory structure preserved  
+- Running twice should be safe (idempotent)
+- Ideally skip unchanged files

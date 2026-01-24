@@ -1,44 +1,54 @@
 #!/usr/bin/env runhaskell
 
-import System.Process (readProcess, callProcess)
-import System.Directory (getModificationTime)
-import Data.List (sortOn)
-import Control.Monad ( void)
-import Data.Foldable (for_, traverse_)
-import Data.Traversable (for)
+import Backup (genSftpCommands)
+import System.Process (readProcess, callProcess, createProcess, StdStream(..), std_in, waitForProcess, proc)
+import System.Environment (getArgs)
+import System.IO (hPutStr, hPutStrLn, hClose, stderr)
+import System.Exit (exitWith, ExitCode(..))
+import Data.List (intercalate)
+import Control.Monad (void)
 
+-- Execute command and capture output
 run :: String -> [String] -> IO String
-run cmd args = readProcess cmd args ""
+run command args = readProcess command args ""
 
-run_ :: String -> [String] -> IO ()
-run_ cmd args = void $ callProcess cmd args
+-- Find all files (not directories) under a path
+findAllFiles :: FilePath -> IO [FilePath]
+findAllFiles path = do
+  output <- run "find" [path, "-type", "f"]
+  pure $ filter (not . null) $ lines output
 
--- find: produces paths
-find :: FilePath -> String -> IO [FilePath]
-find dir pattern = do
-  out <- run "find" [dir, "-name", pattern]
-  pure $ lines out
-
--- sort by mtime (oldest first)
-sortByAge :: [FilePath] -> IO [FilePath]
-sortByAge files = do
-  withTimes <- for files $ \f -> do
-    t <- getModificationTime f
-    pure (t, f)
-  pure $ map snd $ sortOn fst withTimes
-
-uploadAll :: [FilePath] -> IO ()
-uploadAll = traverse_ upload'
-
-upload' :: FilePath -> IO ()
-upload' f = upload "user@host" f "/remote/path/"
-
-upload :: String -> FilePath -> FilePath -> IO ()
-upload host local remoteDir =
-  run_ "scp" [local, host <> ":" <> remoteDir]
+-- Execute SFTP with batch commands piped to stdin
+executeSftp :: String -> [String] -> IO ()
+executeSftp host commands = do
+  let cmdStr = intercalate "\n" commands ++ "\nquit\n"
+  (Just hIn, _, _, process) <- createProcess (proc "sftp" [host])
+    { std_in = CreatePipe }
+  hPutStr hIn cmdStr
+  hClose hIn
+  exitCode <- waitForProcess process
+  case exitCode of
+    ExitSuccess -> pure ()
+    ExitFailure code -> do
+      hPutStrLn stderr $ "SFTP failed with exit code " ++ show code
+      exitWith (ExitFailure code)
 
 main :: IO ()
 main = do
-  find "." "*bin.gz"
-    >>= sortByAge
-    >>= uploadAll
+  args <- getArgs
+  case args of
+    [sourceDir, remoteHost, remoteDir] -> do
+      putStrLn $ "Backing up " ++ sourceDir ++ " -> " ++ remoteHost ++ ":" ++ remoteDir
+
+      files <- findAllFiles sourceDir
+      if null files
+        then putStrLn "No files found."
+        else do
+          putStrLn $ "Found " ++ show (length files) ++ " files"
+
+          let commands = genSftpCommands remoteDir sourceDir files
+          putStrLn $ "Executing " ++ show (length commands) ++ " SFTP commands..."
+
+          executeSftp remoteHost commands
+          putStrLn "Backup complete."
+    _ -> putStrLn "Usage: ./script.hs <source-dir> <user@host> <remote-dir>"
