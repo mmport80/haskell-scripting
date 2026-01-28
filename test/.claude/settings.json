@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(./dev/README.md)",
+      "Bash(./dev/script *)",
+      "Bash(cd ./dev && *)",
+      "Read(./tests/**)",
+      "Read(./CLAUDE.md)",
+      "Read(./FEEDBACK.md)",
+      "Edit(./tests/**)",
+      "Edit(./FEEDBACK.md)",
+      "Write(./tests/**)",
+      "Bash(nix develop --command *)"
+    ],
+    "deny": [
+      "Read(./dev/*.hs)",
+      "Read(./dev/Backup.hs)",
+      "Read(./dev/script.hs)",
+      "Read(./dev/BackupTest.hs)",
+      "Edit(./dev/**)",
+      "Write(./dev/**)"
+    ]
+  }
+}
