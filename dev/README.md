@@ -30,15 +30,18 @@ A self-contained Haskell script for backing up local files to a remote SFTP serv
 ./script.hs ~/documents backup@sftp.example.com /backups/documents
 ```
 
-## Features
+## Implemented Features
 
 - **All local files backed up** - Recursively finds and uploads all files
 - **Directory structure preserved** - Remote directory structure mirrors local
-- **Content integrity** - Verification of backed-up content
-- **Idempotent** - Safe to run multiple times
-- **Skip unchanged files** - Avoids re-uploading when content hasn't changed
+- **Idempotent** - Safe to run multiple times (uses `-mkdir` for safe directory creation)
 - **Portable** - Uses standard SFTP and shell utilities
 - **Self-contained** - No external config files; configuration via command-line args or environment variables
+
+## Planned Features (v0.2+)
+
+- **Content integrity verification** - Verify uploaded content matches source
+- **Skip unchanged files** - Detect and skip files that haven't changed since last backup
 
 ## Implementation
 
