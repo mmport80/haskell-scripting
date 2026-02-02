@@ -1,4 +1,8 @@
-# Haskell Scripting - SFTP Backup
+# Haskell Scripting
+
+Haskell-as-bash-replacement for scripting tasks. Starting with SFTP backup.
+
+## Current Goal: v0.1 - Basic SFTP Backup
 
 A self-contained Haskell script for backing up local files to a remote SFTP server.
 
@@ -30,8 +34,11 @@ A self-contained Haskell script for backing up local files to a remote SFTP serv
 
 - **All local files backed up** - Recursively finds and uploads all files
 - **Directory structure preserved** - Remote directory structure mirrors local
+- **Content integrity** - Verification of backed-up content
+- **Idempotent** - Safe to run multiple times
+- **Skip unchanged files** - Avoids re-uploading when content hasn't changed
 - **Portable** - Uses standard SFTP and shell utilities
-- **Self-contained** - No external config files or dependencies beyond standard tools
+- **Self-contained** - No external config files; configuration via command-line args or environment variables
 
 ## Implementation
 
@@ -41,4 +48,11 @@ The script:
 3. Generates SFTP batch commands (`mkdir` + `put`)
 4. Pipes commands to `sftp` for execution
 
-See `CLAUDE.md` for project constraints and goals.
+## Project Constraints
+
+- **SFTP only** - Narrow scope for initial implementation
+- **Portable** - Standard library where possible, pragmatic use of common bash utils
+- **Self-contained** - Minimize external dependencies and config files
+- **KISS** - Keep it simple
+
+See `CLAUDE.md` for detailed project constraints and goals.

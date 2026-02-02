@@ -21,10 +21,8 @@ KISS
 - Allow users to choose what to back up (not hardcoded patterns)
 
 ## Testing
-- **Property-based testing only** - Use QuickCheck or similar for generative testing
-- No unit tests - focus on properties that should hold
-- QA feedback in FEEDBACK.md focuses on **functionality issues only**, not testing/code details
-- QA role: Test functionality to spot problems (test code, don't review it)
+- QA feedback in FEEDBACK.md
+- QA role: test functionality to spot problems
 
 ## Current Goal: v0.1 - Basic SFTP Backup
 A script that backs up local files to a remote SFTP server:
