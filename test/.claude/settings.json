@@ -1,24 +1,17 @@
 {
   "permissions": {
     "allow": [
-      "Read(./dev/README.md)",
-      "Bash(./dev/script *)",
-      "Bash(cd ./dev && *)",
-      "Read(./tests/**)",
-      "Read(./CLAUDE.md)",
-      "Read(./FEEDBACK.md)",
-      "Edit(./tests/**)",
-      "Edit(./FEEDBACK.md)",
-      "Write(./tests/**)",
-      "Bash(nix develop --command *)"
+      "Read(./**)",
+      "Edit(./**)",
+      "Write(./**)",
+      "Bash(*)",
+      "Read(../dev/README.md)",
+      "Bash(cd ../dev && nix develop --command runhaskell script.hs *)"
     ],
     "deny": [
-      "Read(./dev/*.hs)",
-      "Read(./dev/Backup.hs)",
-      "Read(./dev/script.hs)",
-      "Read(./dev/BackupTest.hs)",
-      "Edit(./dev/**)",
-      "Write(./dev/**)"
+      "Read(../dev/*.hs)",
+      "Edit(../dev/**)",
+      "Write(../dev/**)"
     ]
   }
 }
