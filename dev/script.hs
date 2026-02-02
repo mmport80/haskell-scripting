@@ -1,12 +1,11 @@
 #!/usr/bin/env runhaskell
 
 import Backup (genSftpCommands)
-import System.Process (readProcess, callProcess, createProcess, StdStream(..), std_in, waitForProcess, proc)
+import System.Process (readProcess, createProcess, StdStream(..), std_in, waitForProcess, proc)
 import System.Environment (getArgs)
 import System.IO (hPutStr, hPutStrLn, hClose, stderr)
 import System.Exit (exitWith, ExitCode(..))
 import Data.List (intercalate)
-import Control.Monad (void)
 
 -- Execute command and capture output
 run :: String -> [String] -> IO String

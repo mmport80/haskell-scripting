@@ -105,6 +105,29 @@ test4_pathConstruction = do
 
   return result
 
+-- Test 5: Path with embedded ./ (edge case for path normalization)
+test5_pathWithDotSlash :: IO Bool
+test5_pathWithDotSlash = do
+  putStrLn "\n[TEST 5] Path with embedded ./ (path normalization)"
+  setupTest "test5"
+  let sourceDir = localTempDir </> "test5"
+
+  -- Create test file
+  writeFile (sourceDir </> "file.txt") "test content"
+
+  -- Try to backup with a destination that has ./ in it (e.g., backups/./2025-02/file.txt)
+  result <- (do
+    callProcess "../dev/script" [sourceDir, sftpHost, "backups/./2025-02"]
+    return True) `catch` \(e :: SomeException) -> do
+      putStrLn $ "ERROR: " ++ show e
+      return False
+
+  if result
+    then putStrLn "PASS: Handles paths with ./ correctly"
+    else putStrLn "FAIL: Cannot handle paths with ./"
+
+  return result
+
 -- Main test runner
 main :: IO ()
 main = do
@@ -121,6 +144,7 @@ main = do
   t2 <- test2_emptyDirectory
   t3 <- test3_invalidSource
   t4 <- test4_pathConstruction
+  t5 <- test5_pathWithDotSlash
 
   -- Summary
   putStrLn "\n======================================"
@@ -129,9 +153,10 @@ main = do
   putStrLn $ "  Test 2 (empty dir):   " ++ if t2 then "PASS" else "FAIL"
   putStrLn $ "  Test 3 (invalid):     " ++ if t3 then "PASS" else "FAIL"
   putStrLn $ "  Test 4 (nested):      " ++ if t4 then "PASS" else "FAIL"
+  putStrLn $ "  Test 5 (./ in path):  " ++ if t5 then "PASS" else "FAIL"
 
-  let passed = length (filter id [t1, t2, t3, t4])
-  putStrLn $ "\nPassed: " ++ show passed ++ "/4"
+  let passed = length (filter id [t1, t2, t3, t4, t5])
+  putStrLn $ "\nPassed: " ++ show passed ++ "/5"
 
   -- Cleanup
   removePathForcibly localTempDir

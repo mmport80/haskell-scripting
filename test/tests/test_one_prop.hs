@@ -7,6 +7,7 @@ import System.Process (readProcess)
 import System.Directory (createDirectoryIfMissing, removePathForcibly)
 import System.FilePath ((</>))
 import Control.Exception (catch, SomeException)
+import Data.List (intercalate)
 
 -- Test config
 localTempDir = "/tmp/prop-test"
@@ -21,9 +22,32 @@ instance Arbitrary TestFile where
   shrink (TestFile s) | length s <= 1 = []
                        | otherwise = [TestFile (take (length s - 1) s)]
 
--- Simple test case: create a few files, run script, check exit code
-prop_scriptExecutes :: TestFile -> TestFile -> Property
-prop_scriptExecutes (TestFile f1) (TestFile f2) = monadicIO $ do
+-- Path generator to test edge cases
+newtype DestinationPath = DestinationPath String deriving (Show)
+
+instance Arbitrary DestinationPath where
+  arbitrary = do
+    -- Generate paths with potential edge cases
+    pathType <- elements ["simple", "dot", "dotslash", "embedded", "nested", "deep"]
+
+    baseComponents <- listOf1 (vectorOf 3 (elements ['a'..'z']))
+    let basePath = intercalate "/" baseComponents
+
+    case pathType of
+      "simple"   -> return $ DestinationPath basePath
+      "dot"      -> return $ DestinationPath "."
+      "dotslash" -> return $ DestinationPath ("./backups/" ++ basePath)
+      "embedded" -> return $ DestinationPath (basePath ++ "/./subdir")
+      "nested"   -> return $ DestinationPath ("a/b/c")
+      "deep"     -> return $ DestinationPath "deep/nested/very/long/path"
+      _          -> return $ DestinationPath basePath
+
+  shrink (DestinationPath s) | length s <= 1 = []
+                              | otherwise = [DestinationPath (take (length s - 1) s)]
+
+-- Simple test case: create a few files, run script with various destination paths
+prop_scriptExecutes :: TestFile -> TestFile -> DestinationPath -> Property
+prop_scriptExecutes (TestFile f1) (TestFile f2) (DestinationPath destPath) = monadicIO $ do
   let testDir = localTempDir </> "test"
 
   -- Setup
@@ -32,26 +56,27 @@ prop_scriptExecutes (TestFile f1) (TestFile f2) = monadicIO $ do
   run $ writeFile (testDir </> f1) "content1"
   run $ writeFile (testDir </> f2) "content2"
 
-  -- Run script
+  -- Run script with generated destination path
   success <- run $ (do
-    _ <- readProcess "../dev/script" [testDir, sftpHost, sftpRemoteDir] ""
+    _ <- readProcess "../dev/script" [testDir, sftpHost, destPath] ""
     return True) `catch` \(e :: SomeException) -> do
-      putStrLn $ "ERROR: " ++ show e
+      putStrLn $ "ERROR with path '" ++ destPath ++ "': " ++ show e
       return False
 
   -- Cleanup
   run $ removePathForcibly testDir
 
-  run $ putStrLn $ "  Files: " ++ f1 ++ ", " ++ f2 ++ " -> " ++ if success then "OK" else "FAIL"
+  run $ putStrLn $ "  Files: " ++ f1 ++ ", " ++ f2 ++ " | Path: " ++ destPath ++ " -> " ++ if success then "OK" else "FAIL"
   assert success
 
 main :: IO ()
 main = do
-  putStrLn "QuickCheck - Single Simple Property"
+  putStrLn "QuickCheck - Path Edge Cases"
   putStrLn "===================================="
+  putStrLn "Testing script with various destination path formats..."
   putStrLn ""
 
-  quickCheckWith stdArgs { maxSuccess = 3 } prop_scriptExecutes
+  quickCheckWith stdArgs { maxSuccess = 10 } prop_scriptExecutes
 
   putStrLn ""
   putStrLn "Test complete."
