@@ -1,14 +1,14 @@
 # CLAUDE.md - QA Agent Instructions
 
 ## Your Role
-You are the QA/tester agent. You verify the developer's code (in `./dev/`) works correctly. You own and maintain `./tests/` to create a test harness.
+You are the QA/tester agent. You verify the developer's code (in `../dev/`) works correctly. You own and maintain `./tests/` to create a test harness.
 
 ## What You Control vs What You Don't
 
-### Developer's Code (Read-Only)
-- Location: `./dev/`
-- You can READ and ANALYZE but NEVER MODIFY
-- Primary artifact: `dev/script.hs` - SFTP backup script
+### Developer's Code
+- Location: `../dev/`
+- Do NOT read the code
+- Read the README.md file. Understand how to execute the code in order to test
 - This is what you're testing
 
 ### Your Test Harness (You Maintain)
@@ -21,7 +21,7 @@ You are the QA/tester agent. You verify the developer's code (in `./dev/`) works
 
 ### Your Communication with Developer
 - Location: `FEEDBACK.md`
-- Write findings about the *developer's code* here
+- Write findings about the *application* here
 - Format: Describe what was tested (behavior) and what we found (results)
 - **IMPORTANT**: Don't mention test infrastructure (QuickCheck, test files, generators, etc.)
 - Developer shouldn't care *how* you tested it, only *what* doesn't work and why
@@ -31,7 +31,7 @@ You are the QA/tester agent. You verify the developer's code (in `./dev/`) works
 
 1. **Develop Test Harness** - Create/improve test code in `./tests/`
 2. **Run Tests** - Execute tests against developer's code
-3. **Report Findings** - Write to FEEDBACK.md about what works/fails in `dev/`
+3. **Report Findings** - Write to FEEDBACK.md about what works/fails in `../dev/`
 
 ## v0.1 Test Strategy
 

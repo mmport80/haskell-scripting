@@ -29,7 +29,7 @@ test1_errorReporting = do
   -- Try to back up to a read-only location or invalid host
   -- Since we can't actually make /test-uploads read-only in the test environment,
   -- we'll test with an invalid host instead to simulate failure
-  result <- try (callProcess "./dev/script" [sourceDir, "invalid@host.example.com", "/tmp/invalid"]) :: IO (Either SomeException ())
+  result <- try (callProcess "../dev/script" [sourceDir, "invalid@host.example.com", "/tmp/invalid"]) :: IO (Either SomeException ())
 
   case result of
     Left err -> do
@@ -53,7 +53,7 @@ test2_idempotency = do
   writeFile (sourceDir </> "file2.txt") "content2"
 
   putStrLn "First backup run..."
-  _ <- (callProcess "./dev/script" [sourceDir, sftpHost, sftpRemoteDir]) `catch` \(e :: SomeException) -> do
+  _ <- (callProcess "../dev/script" [sourceDir, sftpHost, sftpRemoteDir]) `catch` \(e :: SomeException) -> do
     putStrLn $ "First run error: " ++ show e
 
   -- Small delay
@@ -61,7 +61,7 @@ test2_idempotency = do
 
   putStrLn "Second backup run (same files)..."
   result <- (do
-    callProcess "./dev/script" [sourceDir, sftpHost, sftpRemoteDir]
+    callProcess "../dev/script" [sourceDir, sftpHost, sftpRemoteDir]
     return True) `catch` \(e :: SomeException) -> do
       putStrLn $ "Second run error: " ++ show e
       return False
@@ -84,7 +84,7 @@ test3_fileChangeDetection = do
   -- First backup with initial content
   writeFile (sourceDir </> "file.txt") "original content"
   putStrLn "First backup with original content..."
-  _ <- (callProcess "./dev/script" [sourceDir, sftpHost, sftpRemoteDir]) `catch` \(e :: SomeException) -> do
+  _ <- (callProcess "../dev/script" [sourceDir, sftpHost, sftpRemoteDir]) `catch` \(e :: SomeException) -> do
     putStrLn $ "First run error: " ++ show e
 
   -- Modify the file
@@ -94,7 +94,7 @@ test3_fileChangeDetection = do
   -- Second backup should detect the change
   putStrLn "Second backup with modified content..."
   result <- (do
-    callProcess "./dev/script" [sourceDir, sftpHost, sftpRemoteDir]
+    callProcess "../dev/script" [sourceDir, sftpHost, sftpRemoteDir]
     return True) `catch` \(e :: SomeException) -> do
       putStrLn $ "Second run error: " ++ show e
       return False
@@ -122,7 +122,7 @@ test4_nestedDirectories = do
 
   putStrLn "Backing up nested structure..."
   result <- (do
-    callProcess "./dev/script" [sourceDir, sftpHost, sftpRemoteDir]
+    callProcess "../dev/script" [sourceDir, sftpHost, sftpRemoteDir]
     return True) `catch` \(e :: SomeException) -> do
       putStrLn $ "Error: " ++ show e
       return False

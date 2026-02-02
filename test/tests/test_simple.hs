@@ -35,7 +35,7 @@ test1_flatDirectory = do
 
   -- Run the developer's script
   result <- (do
-    callProcess "./dev/script" [sourceDir, sftpHost, sftpRemoteDir]
+    callProcess "../dev/script" [sourceDir, sftpHost, sftpRemoteDir]
     return True) `catch` \(e :: SomeException) -> do
       putStrLn $ "ERROR: " ++ show e
       return False
@@ -54,7 +54,7 @@ test2_emptyDirectory = do
   let sourceDir = localTempDir </> "test2"
 
   result <- (do
-    callProcess "./dev/script" [sourceDir, sftpHost, sftpRemoteDir]
+    callProcess "../dev/script" [sourceDir, sftpHost, sftpRemoteDir]
     return True) `catch` \(e :: SomeException) -> do
       putStrLn $ "ERROR: " ++ show e
       return False
@@ -71,7 +71,7 @@ test3_invalidSource = do
   putStrLn "\n[TEST 3] Invalid source directory"
 
   result <- (do
-    callProcess "./dev/script" ["/nonexistent/path", sftpHost, sftpRemoteDir]
+    callProcess "../dev/script" ["/nonexistent/path", sftpHost, sftpRemoteDir]
     return False) `catch` \(e :: SomeException) -> do
       putStrLn $ "Caught error (expected): " ++ show e
       return True  -- We expect this to fail gracefully
@@ -94,7 +94,7 @@ test4_pathConstruction = do
   writeFile (sourceDir </> "subdir" </> "nested.txt") "nested content"
 
   result <- (do
-    callProcess "./dev/script" [sourceDir, sftpHost, sftpRemoteDir]
+    callProcess "../dev/script" [sourceDir, sftpHost, sftpRemoteDir]
     return True) `catch` \(e :: SomeException) -> do
       putStrLn $ "ERROR: " ++ show e
       return False

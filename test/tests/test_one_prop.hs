@@ -34,7 +34,7 @@ prop_scriptExecutes (TestFile f1) (TestFile f2) = monadicIO $ do
 
   -- Run script
   success <- run $ (do
-    _ <- readProcess "./dev/script" [testDir, sftpHost, sftpRemoteDir] ""
+    _ <- readProcess "../dev/script" [testDir, sftpHost, sftpRemoteDir] ""
     return True) `catch` \(e :: SomeException) -> do
       putStrLn $ "ERROR: " ++ show e
       return False
