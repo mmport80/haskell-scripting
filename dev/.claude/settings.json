@@ -6,7 +6,10 @@
 	  "Write(./**)",
 	  "Bash(chmod *)",
 	  "Bash(nix develop *)",
-	  "Bash(git add *)"
+	  "Bash(git add *)",
+	  "Read(/tmp/**)",
+	  "Edit(/tmp/**)",
+	  "Write(/tmp/**)"
     ],
     "deny": [
       "Read(../test/tests/**)",

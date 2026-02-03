@@ -3,15 +3,14 @@
 
 import Test.QuickCheck
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
-import System.Process (readProcess, callProcess, createProcess, StdStream(..), std_in, waitForProcess, proc)
-import System.IO (hPutStr, hClose)
+import System.Process (readProcess, callProcess)
 import System.Directory
   ( createDirectoryIfMissing, removePathForcibly
   , doesFileExist, doesDirectoryExist, listDirectory
   )
 import System.FilePath ((</>), takeFileName)
-import Data.List (sort, intercalate, nub, isPrefixOf)
-import Control.Monad (filterM, forM, forM_, void)
+import Data.List (sort, intercalate)
+import Control.Monad (filterM, forM, forM_)
 import Control.Exception (catch, SomeException)
 import Data.Digest.Pure.SHA (sha256, showDigest)
 import qualified Data.ByteString.Lazy as BL
@@ -95,7 +94,14 @@ instance Arbitrary FileTree where
     -- Generate small flat trees: 0-3 files max to keep SFTP output manageable
     numFiles <- choose (0, 3)
     files <- vectorOf numFiles arbitrary
-    pure $ FileTree name files []
+    -- Occasionally add nested subdirectories for more coverage
+    hasSubdirs <- oneof [return False, return False, return True]  -- 1/3 chance of subdirs
+    subdirs <- if hasSubdirs
+      then do
+        numSubs <- choose (1, 2)
+        vectorOf numSubs arbitrary
+      else return []
+    pure $ FileTree name files subdirs
 
   shrink (FileTree name files subdirs) =
     [FileTree name [] subdirs] ++
@@ -118,45 +124,6 @@ materializeFileTree root (FileTree dirName files subdirs) = do
     writeFile filePath content
 
   forM_ subdirs $ materializeFileTree dirPath
-
--- | Execute SFTP batch commands (matches implementation in script.hs)
-executeSftpBatch :: String -> FilePath -> FilePath -> FilePath -> IO ()
-executeSftpBatch host remoteDir localBase localDir = do
-  let fullLocalPath = localBase </> localDir
-  putStrLn $ "[UPLOAD] " ++ fullLocalPath ++ " -> " ++ host ++ ":" ++ remoteDir
-
-  files <- findAllFiles fullLocalPath
-  if null files
-    then putStrLn "No files to upload"
-    else do
-      let commands = genSftpCommands remoteDir fullLocalPath files
-      putStrLn $ "Executing " ++ show (length commands) ++ " SFTP commands..."
-      (Just hIn, _, _, process) <- createProcess (proc "sftp" [host])
-        { std_in = CreatePipe }
-      hPutStr hIn $ intercalate "\n" commands ++ "\nquit\n"
-      hClose hIn
-      exitCode <- waitForProcess process
-      putStrLn $ "SFTP exit code: " ++ show exitCode
-  where
-    findAllFiles path = do
-      output <- (Right <$> readProcess "find" [path, "-type", "f"] "")
-        `catch` \(e :: SomeException) -> return (Left e)
-      case output of
-        Right out -> return $ filter (not . null) $ lines out
-        Left e -> putStrLn ("[ERROR] find failed: " ++ show e) >> return []
-
-    genSftpCommands remoteBase localPath files =
-      mkdirs ++ uploads
-      where
-        dirs = nub $ map getDirPath files
-        getDirPath f = reverse $ dropWhile (/= '/') $ reverse f
-        relativeDirs = map (stripPrefix localPath) dirs
-        mkdirs = ["mkdir " ++ remoteBase ++ "/" ++ d | d <- relativeDirs, not (null d)]
-        uploads = ["put " ++ f ++ " " ++ remoteBase ++ "/" ++ stripPrefix localPath f | f <- files]
-
-    stripPrefix prefix path
-      | prefix `isPrefixOf` path = drop (length prefix + 1) path
-      | otherwise = path
 
 -- | Compute SHA256 checksum of a file
 fileChecksum :: FilePath -> IO String
@@ -215,15 +182,22 @@ getRemoteFileList remotePath = do
 prop_allFilesExist :: FileTree -> Property
 prop_allFilesExist tree = monadicIO $ do
   let testDir = localTempDir
+  let sourceDir = testDir </> dirName tree
+
   run $ createDirectoryIfMissing True testDir
   run $ materializeFileTree testDir tree
-  run $ executeSftpBatch sftpHost sftpRemoteDir testDir (dirName tree)
 
-  let localRoot = testDir </> dirName tree
-  localExists <- run $ doesDirectoryExist localRoot
+  -- Call the actual developer script
+  scriptResult <- run $ (do
+    callProcess "../dev/script" [sourceDir, sftpHost, sftpRemoteDir]
+    return True) `catch` \(e :: SomeException) -> do
+      putStrLn $ "[PROP1] Script failed: " ++ show e
+      return False
+
+  localExists <- run $ doesDirectoryExist sourceDir
 
   localFiles <- if localExists
-    then run $ getAllFiles localRoot
+    then run $ getAllFiles sourceDir
     else return []
 
   remoteFiles <- run $ getRemoteFileList (sftpRemoteDir </> dirName tree)
@@ -233,23 +207,30 @@ prop_allFilesExist tree = monadicIO $ do
   let localCount = length localFiles
   let remoteCount = length remoteFiles
 
-  run $ putStrLn $ "[PROP1] Local files: " ++ show localCount ++ ", Remote files: " ++ show remoteCount
-  assert (localCount == 0 || remoteCount > 0)
+  run $ putStrLn $ "[PROP1] Local files: " ++ show localCount ++ ", Remote files: " ++ show remoteCount ++ ", Script succeeded: " ++ show scriptResult
+  assert (scriptResult && (localCount == 0 || remoteCount > 0))
 
 -- | Property 2: Content integrity (checksums match)
 prop_checksumsMatch :: FileTree -> Property
 prop_checksumsMatch tree = monadicIO $ do
   let testDir = localTempDir
+  let sourceDir = testDir </> dirName tree
+
   run $ createDirectoryIfMissing True testDir
   run $ materializeFileTree testDir tree
-  run $ executeSftpBatch sftpHost sftpRemoteDir testDir (dirName tree)
 
-  let localRoot = testDir </> dirName tree
-  localExists <- run $ doesDirectoryExist localRoot
+  -- Call the actual developer script
+  scriptResult <- run $ (do
+    callProcess "../dev/script" [sourceDir, sftpHost, sftpRemoteDir]
+    return True) `catch` \(e :: SomeException) -> do
+      putStrLn $ "[PROP2] Script failed: " ++ show e
+      return False
+
+  localExists <- run $ doesDirectoryExist sourceDir
 
   localChecksums <- if localExists
     then do
-      allFiles <- run $ getAllFiles localRoot
+      allFiles <- run $ getAllFiles sourceDir
       run $ forM allFiles $ \(_, fpath) -> do
         sum' <- fileChecksum fpath
         return (takeFileName fpath, sum')
@@ -257,69 +238,99 @@ prop_checksumsMatch tree = monadicIO $ do
 
   run $ removePathForcibly testDir
 
-  run $ putStrLn $ "[PROP2] Computed checksums for " ++ show (length localChecksums) ++ " files"
-  assert (null (files tree) || not (null localChecksums))
+  run $ putStrLn $ "[PROP2] Computed checksums for " ++ show (length localChecksums) ++ " files, Script succeeded: " ++ show scriptResult
+  assert (scriptResult && (null (files tree) || not (null localChecksums)))
 
 -- | Property 3: Directory structure preserved
 prop_directoryStructure :: FileTree -> Property
 prop_directoryStructure tree = monadicIO $ do
   let testDir = localTempDir
+  let sourceDir = testDir </> dirName tree
+
   run $ createDirectoryIfMissing True testDir
   run $ materializeFileTree testDir tree
-  run $ executeSftpBatch sftpHost sftpRemoteDir testDir (dirName tree)
 
-  let localRoot = testDir </> dirName tree
-  localExists <- run $ doesDirectoryExist localRoot
+  -- Call the actual developer script
+  scriptResult <- run $ (do
+    callProcess "../dev/script" [sourceDir, sftpHost, sftpRemoteDir]
+    return True) `catch` \(e :: SomeException) -> do
+      putStrLn $ "[PROP3] Script failed: " ++ show e
+      return False
+
+  localExists <- run $ doesDirectoryExist sourceDir
 
   localDirs <- if localExists
-    then run $ getAllDirs localRoot
+    then run $ getAllDirs sourceDir
     else return []
 
   remoteDirs <- run $ getRemoteFileList (sftpRemoteDir </> dirName tree)
 
   run $ removePathForcibly testDir
 
-  run $ putStrLn $ "[PROP3] Local directories: " ++ show (length localDirs) ++ ", Remote entries: " ++ show (length remoteDirs)
-  assert (null (subdirs tree) || length remoteDirs > 0)
+  run $ putStrLn $ "[PROP3] Local directories: " ++ show (length localDirs) ++ ", Remote entries: " ++ show (length remoteDirs) ++ ", Script succeeded: " ++ show scriptResult
+  assert (scriptResult && (null (subdirs tree) || length remoteDirs > 0))
 
 -- | Property 4: Idempotent (uploading twice = same state)
 prop_idempotent :: FileTree -> Property
 prop_idempotent tree = monadicIO $ do
   let testDir = localTempDir
+  let sourceDir = testDir </> dirName tree
+
   run $ createDirectoryIfMissing True testDir
   run $ materializeFileTree testDir tree
 
-  run $ executeSftpBatch sftpHost sftpRemoteDir testDir (dirName tree)
+  -- First upload
+  result1 <- run $ (do
+    callProcess "../dev/script" [sourceDir, sftpHost, sftpRemoteDir]
+    return True) `catch` \(e :: SomeException) -> do
+      putStrLn $ "[PROP4] First upload failed: " ++ show e
+      return False
+
   firstList <- run $ getRemoteFileList (sftpRemoteDir </> dirName tree)
 
-  run $ executeSftpBatch sftpHost sftpRemoteDir testDir (dirName tree)
+  -- Second upload (idempotent)
+  result2 <- run $ (do
+    callProcess "../dev/script" [sourceDir, sftpHost, sftpRemoteDir]
+    return True) `catch` \(e :: SomeException) -> do
+      putStrLn $ "[PROP4] Second upload failed: " ++ show e
+      return False
+
   secondList <- run $ getRemoteFileList (sftpRemoteDir </> dirName tree)
 
   run $ removePathForcibly testDir
 
-  run $ putStrLn $ "[PROP4] First upload: " ++ show (length firstList) ++ " files, Second: " ++ show (length secondList)
-  assert (sort firstList == sort secondList)
+  run $ putStrLn $ "[PROP4] First upload: " ++ show (length firstList) ++ " files, Second: " ++ show (length secondList) ++ ", Both succeeded: " ++ show (result1 && result2)
+  assert (result1 && result2 && sort firstList == sort secondList)
 
 -- | Property 5: Skip unchanged files (no error on re-upload)
 prop_skipUnchanged :: FileTree -> Property
 prop_skipUnchanged tree = monadicIO $ do
   let testDir = localTempDir
+  let sourceDir = testDir </> dirName tree
+
   run $ createDirectoryIfMissing True testDir
   run $ materializeFileTree testDir tree
 
-  run $ executeSftpBatch sftpHost sftpRemoteDir testDir (dirName tree)
+  -- First upload
+  result1 <- run $ (do
+    callProcess "../dev/script" [sourceDir, sftpHost, sftpRemoteDir]
+    return True) `catch` \(e :: SomeException) -> do
+      putStrLn $ "[PROP5] First upload failed: " ++ show e
+      return False
+
   run $ threadDelay 500000  -- 0.5 second delay
 
   -- Second upload should succeed
-  result <- run $ (executeSftpBatch sftpHost sftpRemoteDir testDir (dirName tree) >> return True)
-    `catch` \(e :: SomeException) -> do
+  result2 <- run $ (do
+    callProcess "../dev/script" [sourceDir, sftpHost, sftpRemoteDir]
+    return True) `catch` \(e :: SomeException) -> do
       putStrLn $ "[PROP5] Second upload failed: " ++ show e
       return False
 
   run $ removePathForcibly testDir
 
-  run $ putStrLn $ "[PROP5] Second upload succeeded: " ++ show result
-  assert result
+  run $ putStrLn $ "[PROP5] First upload: " ++ show result1 ++ ", Second upload: " ++ show result2
+  assert (result1 && result2)
 
 -- ==============================================================================
 -- Main Test Runner

@@ -1,8 +1,50 @@
 # QA Feedback - SFTP Backup Script
 
+## [2026-02-03] Functional Issues Found
+
+### Issue 1: Silent Upload Failures with Paths Containing `./`
+
+**Problem:** When the remote destination path contains `./` (e.g., `backups/./2025-02`), the script exits successfully but uploads fail silently.
+
+**What happens:**
+- Script: "Backup complete" (exit 0)
+- SFTP: "dest open ... No such file or directory"
+- Result: No files uploaded, but no error reported
+
+**Example:**
+```bash
+./script.hs ~/docs user@host backups/./2025-02
+# Reports: Backup complete ✓
+# Actually: All files failed to upload ✗
+```
+
+**Impact:** Backups may appear successful when they actually failed. Data isn't backed up.
+
 ---
 
-## [2026-02-02 Latest] Test Results - All Tests Passing
+### Issue 2: Script Doesn't Validate Destination Directory Exists
+
+**Problem:** When the destination path doesn't exist and can't be created, individual file uploads fail, but the script still reports success.
+
+**Behavior:** Each failed `put` shows an error in SFTP output but script exits 0.
+
+**Impact:** Backups may silently fail if remote path is inaccessible or read-only.
+
+---
+
+## What Works Correctly
+
+✓ Basic file backup (flat and nested directories)
+✓ Empty directory handling
+✓ Invalid source path rejection
+✓ Error handling on connection failure
+✓ Idempotency (safe to run multiple times)
+✓ File change detection (modified files re-upload)
+✓ Nested directory structure preservation
+
+---
+
+## [2026-02-02] Test Results - All Tests Passing
 
 ### Test Infrastructure Update
 Fixed test harness path references to correctly locate the developer's script executable. Tests now run successfully in the test environment.

@@ -8,7 +8,7 @@ You are the QA/tester agent. You verify the developer's code (in `../dev/`) work
 ### Developer's Code
 - Location: `../dev/`
 - Do NOT read the code
-- Read the README.md file. Understand how to execute the code in order to test
+- Read the DEV_README.md file. Understand how to execute the code in order to test
 - This is what you're testing
 
 ### Your Test Harness (You Maintain)

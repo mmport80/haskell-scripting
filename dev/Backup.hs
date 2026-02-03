@@ -51,3 +51,11 @@ genSftpCommands remoteBase localBase files =
     -- Use -mkdir prefix to make non-fatal (safe for re-runs when dirs already exist)
     mkdirs = map (\d -> "-mkdir " ++ remoteBase ++ "/" ++ d) allParentDirs
     uploads = map (\f -> "put " ++ f ++ " " ++ remoteBase ++ "/" ++ stripPrefix localBase f) files
+
+-- Generate checksum verification commands (md5sum for integrity check)
+genVerifyCommands :: FilePath -> FilePath -> [FilePath] -> [String]
+genVerifyCommands remoteBase localBase files =
+  map (\f -> "get " ++ remoteBase ++ "/" ++ stripPrefix localBase f ++ " .verify-tmp-" ++ sanitizeFilename (stripPrefix localBase f)) files
+  where
+    -- Replace path separators to create safe temp filename
+    sanitizeFilename path = map (\c -> if c == '/' then '-' else c) path

@@ -1,15 +1,15 @@
 {
   "permissions": {
-    "allow": [
+      "allow": [
+      "Read(/Users/johnorford/haskell-scripting/dev/README.md)",
       "Read(./**)",
       "Edit(./**)",
       "Write(./**)",
       "Bash(*)",
-      "Read(../dev/README.md)",
       "Bash(cd ../dev && nix develop --command runhaskell script.hs *)"
     ],
     "deny": [
-      "Read(../dev/*.hs)",
+      "Read(../dev/**)",
       "Edit(../dev/**)",
       "Write(../dev/**)"
     ]
