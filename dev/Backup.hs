@@ -1,7 +1,7 @@
 -- Backup library - testable core logic
 module Backup where
 
-import Data.List (isPrefixOf, nub, sortBy)
+import Data.List (isPrefixOf, nub, sortBy, intercalate)
 
 -- Extract unique directories from file list
 extractDirs :: [FilePath] -> [FilePath]
@@ -20,6 +20,12 @@ splitPath :: Char -> FilePath -> [FilePath]
 splitPath delim path = case break (== delim) path of
   (a, "") -> [a]
   (a, _:rest) -> a : splitPath delim rest
+
+-- Normalize a path by removing ./ sequences
+normalizePath :: FilePath -> FilePath
+normalizePath path =
+  let parts = filter (\p -> p /= "." && not (null p)) (splitPath '/' path)
+  in intercalate "/" parts
 
 -- Generate all parent directories for a path
 -- "a/b/c" -> ["a", "a/b", "a/b/c"]
@@ -44,13 +50,14 @@ genSftpCommands :: FilePath -> FilePath -> [FilePath] -> [String]
 genSftpCommands remoteBase localBase files =
   mkdirs ++ uploads
   where
+    normalizedBase = normalizePath remoteBase
     dirs = extractDirs files
     relativeDirs = map (stripPrefix localBase) dirs
     -- Generate ALL parent directories, sorted by depth (shallow to deep)
     allParentDirs = genParentDirs relativeDirs
     -- Use -mkdir prefix to make non-fatal (safe for re-runs when dirs already exist)
-    mkdirs = map (\d -> "-mkdir " ++ remoteBase ++ "/" ++ d) allParentDirs
-    uploads = map (\f -> "put " ++ f ++ " " ++ remoteBase ++ "/" ++ stripPrefix localBase f) files
+    mkdirs = map (\d -> "-mkdir " ++ normalizedBase ++ "/" ++ d) allParentDirs
+    uploads = map (\f -> "put " ++ f ++ " " ++ normalizedBase ++ "/" ++ stripPrefix localBase f) files
 
 -- Generate checksum verification commands (md5sum for integrity check)
 genVerifyCommands :: FilePath -> FilePath -> [FilePath] -> [String]

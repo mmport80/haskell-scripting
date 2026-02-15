@@ -1,12 +1,12 @@
 #!/usr/bin/env runhaskell
 
 import Backup (genSftpCommands, genVerifyCommands)
-import System.Process (readProcess, createProcess, StdStream(..), std_in, std_out, waitForProcess, proc)
+import System.Process (readProcess, createProcess, StdStream(..), std_in, std_out, std_err, waitForProcess, proc)
 import System.Environment (getArgs, lookupEnv)
 import System.IO (hPutStr, hPutStrLn, hClose, stderr, hGetContents)
 import System.Exit (exitWith, ExitCode(..))
 import System.Directory (getModificationTime, doesFileExist, removeFile, getFileSize)
-import Data.List (intercalate)
+import Data.List (intercalate, isInfixOf)
 import Data.Maybe (fromMaybe)
 import Control.Exception (catch, SomeException, try)
 import Control.Monad (filterM)
@@ -63,19 +63,46 @@ verifyUploadedFiles uploadedFiles verifyResults = do
   pure True
 
 -- Execute SFTP with batch commands piped to stdin
+-- Detects both exit code failures and individual command failures in SFTP output
 executeSftp :: String -> [String] -> IO ()
 executeSftp host commands = do
   let cmdStr = intercalate "\n" commands ++ "\nquit\n"
-  (Just hIn, _, _, process) <- createProcess (proc "sftp" [host])
-    { std_in = CreatePipe }
+  (Just hIn, Just hOut, Just hErr, process) <- createProcess (proc "sftp" [host])
+    { std_in = CreatePipe
+    , std_out = CreatePipe
+    , std_err = CreatePipe
+    }
   hPutStr hIn cmdStr
   hClose hIn
+
+  -- Capture output
+  output <- hGetContents hOut
+  errOutput <- hGetContents hErr
   exitCode <- waitForProcess process
-  case exitCode of
-    ExitSuccess -> pure ()
-    ExitFailure code -> do
-      hPutStrLn stderr $ "SFTP failed with exit code " ++ show code
-      exitWith (ExitFailure code)
+
+  -- Check for error indicators in SFTP output
+  let hasErrors = any (`isInfixOf` output)
+        [ "No such file or directory"
+        , "Permission denied"
+        , "Failure"
+        , "is not a directory"
+        ] ||
+        any (`isInfixOf` errOutput)
+        [ "No such file or directory"
+        , "Permission denied"
+        , "Failure"
+        ]
+
+  if hasErrors || exitCode /= ExitSuccess
+    then do
+      hPutStrLn stderr $ "SFTP command failed"
+      when (not (null output)) $ hPutStrLn stderr $ "SFTP output:\n" ++ output
+      when (not (null errOutput)) $ hPutStrLn stderr $ "SFTP error:\n" ++ errOutput
+      hPutStrLn stderr $ "SFTP exit code: " ++ show exitCode
+      exitWith (ExitFailure 1)
+    else pure ()
+  where
+    when cond action = if cond then action else pure ()
 
 main :: IO ()
 main = do
